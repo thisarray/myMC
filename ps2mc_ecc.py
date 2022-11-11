@@ -7,7 +7,7 @@
 
 """
 Routines for calculating the Hamming codes, a simple form of error
-correcting codes (ECC), as used on PS2 memory cards.  
+correcting codes (ECC), as used on PS2 memory cards.
 """
 
 _SCCS_ID = "@(#) mymc ps2mc_ecc.py 1.4 07/12/17 02:34:04\n"
@@ -46,7 +46,7 @@ def _parityb(a):
 def _make_ecc_tables():
 	parity_table = [_parityb(b)
 			for b in range(256)]
-	cpmasks = [0x55, 0x33, 0x0F, 0x00, 0xAA, 0xCC, 0xF0] 
+	cpmasks = [0x55, 0x33, 0x0F, 0x00, 0xAA, 0xCC, 0xF0]
 
 	column_parity_masks = [None] * 256
 	for b in range(256):
@@ -61,10 +61,10 @@ _parity_table, _column_parity_masks = _make_ecc_tables()
 
 def _ecc_calculate(s):
 	"Calculate the Hamming code for a 128 byte long string or byte array."
-	
+
 	if not isinstance(s, array.array):
 		a = array.array('B')
-		a.fromstring(s)
+		a.frombytes(s)
 		s = a
 	column_parity = 0x77
 	line_parity_0 = 0x7F
@@ -79,8 +79,8 @@ def _ecc_calculate(s):
 
 def _ecc_check(s, ecc):
 	"""Detect and correct any single bit errors.
-	
-	The parameters "s" and "ecc", the data and expected Hamming code 
+
+	The parameters "s" and "ecc", the data and expected Hamming code
 	repectively, must be modifiable sequences of integers and are
 	updated with the corrected values if necessary."""
 
@@ -92,9 +92,9 @@ def _ecc_check(s, ecc):
 	#_print_bin(0, s.tostring())
 	#print "computed %02x %02x %02x" % tuple(computed)
 	#print "actual %02x %02x %02x" % tuple(ecc)
-	
+
 	# ECC mismatch
-		
+
 	cp_diff = (computed[0] ^ ecc[0]) & 0x77
 	lp0_diff = (computed[1] ^ ecc[1]) & 0x7F
 	lp1_diff = (computed[2] ^ ecc[2]) & 0x7F
@@ -105,13 +105,13 @@ def _ecc_check(s, ecc):
 	#				    lp_comp, cp_comp)
 
 	if lp_comp == 0x7F and cp_comp == 0x07:
-		print "corrected 1"
+		print("corrected 1")
 		# correctable 1 bit error in data
 		s[lp1_diff] ^= 1 << (cp_diff >> 4)
 		return ECC_CHECK_CORRECTED
 	if ((cp_diff == 0 and lp0_diff == 0 and lp1_diff == 0)
 	      or _popcount(lp_comp) + _popcount(cp_comp) == 1):
-		print "corrected 2"
+		print("corrected 2")
 		# correctable 1 bit error in ECC
 		# (and/or one of the unused bits was set)
 		ecc[0] = computed[0]
@@ -129,7 +129,7 @@ def ecc_calculate_page(page):
 
 def ecc_check_page(page, spare):
 	"Check and correct any single bit errors in a PS2 memory card page."
-	
+
 	failed = False
 	corrected = False
 
@@ -140,16 +140,16 @@ def ecc_check_page(page, spare):
 	chunks = []
 	for i in range(div_round_up(len(page), 128)):
 		a = array.array('B')
-		a.fromstring(page[i * 128 : i * 128 + 128])
-		chunks.append((a, map(ord, spare[i * 3 : i * 3 + 3])))
-	
+		a.frombytes(page[i * 128 : i * 128 + 128])
+		chunks.append((a, list(map(ord, spare[i * 3 : i * 3 + 3]))))
+
 	r = [ecc_check(s, ecc)
 	     for (s, ecc) in chunks]
 	ret = ECC_CHECK_OK
 	if ECC_CHECK_CORRECTED in r:
 		# rebuild sector and spare from the corrected versions
-		page = "".join([a[0].tostring()
-				for a in chunks])
+		page = b"".join([a[0].tobytes()
+				 for a in chunks])
 		spare = "".join([chr(a[1][i])
 				 for a in chunks
 				 for i in range(3)])
@@ -164,7 +164,7 @@ if mymcsup == None:
 else:
 	# _c_ubyte_p = ctypes.POINTER(ctypes.c_ubyte)
 	def ecc_calculate(s):
-		aecc = array.array('B', "\0\0\0")
+		aecc = array.array('B', b"\0\0\0")
 		cecc = ctypes.c_ubyte.from_address(aecc.buffer_info()[0])
 		mymcsup.ecc_calculate(s, len(s), cecc)
 		return list(aecc)
@@ -179,4 +179,3 @@ else:
 		ecc[1] = aecc[1]
 		ecc[2] = aecc[2]
 		return ret
-		
