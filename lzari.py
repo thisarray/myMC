@@ -16,7 +16,6 @@ _SCCS_ID = "@(#) mymc lzari.py 1.6 12/10/04 19:07:53\n"
 import sys
 import array
 import binascii
-import string
 import time
 from bisect import bisect_right
 from math import log
@@ -59,15 +58,15 @@ MAX_SUFFIX_CHAIN = 50	# limit on how many identical suffixes to try to match
 #	print "@@@ %s %04x" % (msg, value)
 debug = lambda value, msg: None
 
-_tr_16 = string.maketrans("0123456789abcdef",
-			  "\x00\x01\x02\x03"
-			  "\x10\x11\x12\x13"
-			  "\x20\x21\x22\x23"
-			  "\x30\x31\x32\x33")
-_tr_4 = string.maketrans("0123",
-			 "\x00\x01"
-			 "\x10\x11")
-_tr_2 = string.maketrans("01", "\x00\x01")
+_tr_16 = bytes.maketrans(b"0123456789abcdef",
+			 b"\x00\x01\x02\x03"
+			 b"\x10\x11\x12\x13"
+			 b"\x20\x21\x22\x23"
+			 b"\x30\x31\x32\x33")
+_tr_4 = bytes.maketrans(b"0123",
+			b"\x00\x01"
+			b"\x10\x11")
+_tr_2 = bytes.maketrans(b"01", b"\x00\x01")
 
 def string_to_bit_array(s):
 	"""Convert a string to an array containing a sequence of bits."""
@@ -77,23 +76,23 @@ def string_to_bit_array(s):
 	a = array.array('B', s)
 	return a
 
-_tr_rev_2 = string.maketrans("\x00\x01", "01")
-_tr_rev_4 = string.maketrans("\x00\x01"
-			     "\x10\x11",
-			     "0123")
-_tr_rev_16 = string.maketrans("\x00\x01\x02\x03"
-			      "\x10\x11\x12\x13"
-			      "\x20\x21\x22\x23"
-			      "\x30\x31\x32\x33",
-			      "0123456789abcdef")
+_tr_rev_2 = bytes.maketrans(b"\x00\x01", b"01")
+_tr_rev_4 = bytes.maketrans(b"\x00\x01"
+			    b"\x10\x11",
+			    b"0123")
+_tr_rev_16 = bytes.maketrans(b"\x00\x01\x02\x03"
+			     b"\x10\x11\x12\x13"
+			     b"\x20\x21\x22\x23"
+			     b"\x30\x31\x32\x33",
+			     b"0123456789abcdef")
 def bit_array_to_string(a):
 	"""Convert an array containing a sequence of bits to a string."""
 	remainder = len(a) % 8
 	if remainder != 0:
 		a.fromlist([0] * (8 - remainder))
-	s = a.tostring()
+	s = a.tobytes()
 	s = binascii.unhexlify(s.translate(_tr_rev_2))
-	s = binascii.unhexlify(s.translate(_tr_rev_4))	
+	s = binascii.unhexlify(s.translate(_tr_rev_4))
 	return binascii.unhexlify(s.translate(_tr_rev_16))
 
 def _match(src, pos, hpos, mlen, end):
@@ -121,10 +120,10 @@ def _rehash_table2(src, chars, head, next, next2, hist_invalid):
 		table2[key2] = p
 	return table2
 
-class lzari_codec(object):
+class lzari_codec:
 	# despite the name this does not implement a codec compatible
 	# with Python's codec system
-	
+
 	def init(self, decode):
 		self.high = QUADRANT4
 		self.low = 0
@@ -132,23 +131,23 @@ class lzari_codec(object):
 			self.code = 0
 			# reverse the order of sym_cum so bisect_right() can
 			# be used for faster searching
-			self.sym_cum = range(0, MAX_CHAR + 1)
+			self.sym_cum = list(range(0, MAX_CHAR + 1))
 		else:
 			self.shifts = 0
-			self.char_to_symbol = range(1, MAX_CHAR + 1)
-			self.sym_cum = range(MAX_CHAR, -1, -1)
+			self.char_to_symbol = list(range(1, MAX_CHAR + 1))
+			self.sym_cum = list(range(MAX_CHAR, -1, -1))
 			self.next_table = [None] * HIST_LEN
 			self.next2_table = [None] * HIST_LEN
 			self.suffix_table = {}
 
-		self.symbol_to_char = [0] + range(MAX_CHAR)
+		self.symbol_to_char = [0] + list(range(MAX_CHAR))
 		self.sym_freq = [0] + [1] * MAX_CHAR
 		self.position_cum = [0] * (HIST_LEN + 1)
 		a = 0
 		for i in range(HIST_LEN, 0, -1):
-			a =  a + 10000 / (200 + i)
+			a = a + 10000 / (200 + i)
 			self.position_cum[i - 1] = a
-		
+
 	def search(self, table, x):
 		c = 1
 	        s = len(table) - 1
@@ -164,10 +163,10 @@ class lzari_codec(object):
 
 	def update_model_decode(self, symbol):
 		# A compatible implemention to the one used while compressing.
-		
+
 		sym_freq = self.sym_freq
 		sym_cum = self.sym_cum
-		
+
 		if self.sym_cum[MAX_CHAR] >= MAX_CUM:
 			c = 0
 			for i in range(MAX_CHAR, 0, -1):
@@ -190,11 +189,11 @@ class lzari_codec(object):
 		sym_freq[new_symbol] = freq + 1
 		for i in range(MAX_CHAR - new_symbol + 1, MAX_CHAR + 1):
 			sym_cum[i] += 1
-			
+
 	def update_model_encode(self, symbol):
 		sym_freq = self.sym_freq
 		sym_cum = self.sym_cum
-		
+
 	        if sym_cum[0] >= MAX_CUM:
 			c = 0
 			for i in range(MAX_CHAR, 0, -1):
@@ -224,7 +223,7 @@ class lzari_codec(object):
 		low = self.low
 		code = self.code
 		sym_cum = self.sym_cum
-		
+
 		_range = high - low
 		max_cum_freq = sym_cum[MAX_CHAR]
 		n = ((code - low + 1) * max_cum_freq - 1) / _range
@@ -256,7 +255,7 @@ class lzari_codec(object):
 		self.code = code
 		self.update_model_decode(symbol)
 		return ret
-	
+
 	def decode_position(self):
 		_range = self.high - self.low
 		max_cum = self.position_cum[0]
@@ -272,7 +271,7 @@ class lzari_codec(object):
 				    or self.high > QUADRANT3):
 					if self.high > QUADRANT2:
 						return pos
- 				else:
+				else:
 					self.low -= QUADRANT1
 					self.code -= QUADRANT1
 					self.high -= QUADRANT1
@@ -286,7 +285,7 @@ class lzari_codec(object):
 
 	def add_suffix_1(self, pos, find):
 		# naive implemention used for testing
-		
+
 		if not find:
 			return (None, 0)
 		src = self.src
@@ -300,31 +299,31 @@ class lzari_codec(object):
 				return (i, mlen)
 			mlen -= 1
 		return (None, -1)
-			
+
 	def add_suffix_2(self, pos, find):
 		# a two level dictionary look up that leverages Python's
 		# built-in dicts to get something that's hopefully faster
 		# than implementing binary trees in completely in Python.
-		
+
 		src = self.src
 		suffix_table = self.suffix_table
 		max_match = min(self.max_match, len(src) - pos)
 
 		mlen = -1
 		mpos = None
-		
+
 		hist_invalid = pos - HIST_LEN - 1
 		modpos = pos % HIST_LEN
 		pos2 = pos + MIN_MATCH_LEN
-		
+
 		key = src[pos : pos2]
 		a = suffix_table.get(key)
 		if a != None:
 			next = self.next_table
 			next2 = self.next2_table
-			
+
 			[count, head, table2, chars] = a
-			
+
 			pos3 = pos2 + chars
 			key2 = src[pos2 : pos3]
 			min_match2 = MIN_MATCH_LEN + chars
@@ -381,10 +380,10 @@ class lzari_codec(object):
 					#	mpos = p
 					#	mlen = rlen
 					p = next[p % HIST_LEN]
-					
+
 				if mpos != None:
 					mlen += MIN_MATCH_LEN
-					
+
 			count += 1
 			new_chars = int(log(count, 2))
 			# new_chars = 50
@@ -397,7 +396,7 @@ class lzari_codec(object):
 
 			next[modpos] = head
 			head = pos
-			
+
 			key2 = src[pos2 : pos2 + chars]
 			head2 = table2.get(key2, hist_invalid)
 			next2[modpos] = head2
@@ -437,31 +436,31 @@ class lzari_codec(object):
 		r = self.add_suffix_2(pos, find)
 		start_pos = self.start_pos
 		if find and r[0] != None:
-			print ("%4d %02x %4d %2d"
+			print(("%4d %02x %4d %2d"
 			       % (pos - start_pos, ord(self.src[pos]),
-				  r[0] - start_pos, r[1]))
+				  r[0] - start_pos, r[1])))
 		else:
-			print ("%4d %02x"
-				       % (pos - start_pos, ord(self.src[pos])))
+			print(("%4d %02x"
+				       % (pos - start_pos, ord(self.src[pos]))))
 		return r
-	
+
 	add_suffix = add_suffix_2
-	
+
 	def output_bit(self, bit):
 		self.append_bit(bit)
 		bit ^= 1
 		for i in range(self.shifts):
 			self.append_bit(bit)
 		self.shifts = 0
-		
+
 	def encode_char(self, char):
 		low = self.low
 		high = self.high
 		sym_cum = self.sym_cum
-		
+
 		symbol = self.char_to_symbol[char]
 		range = high - low
-	
+
 		high = low + range * sym_cum[symbol - 1] / sym_cum[0]
 		low += range * sym_cum[symbol] / sym_cum[0]
 		debug(high, "high");
@@ -511,13 +510,13 @@ class lzari_codec(object):
 				break
 			low *= 2
 			high *= 2
-			
+
 		self.low = low
 		self.high = high
-			
+
 	def encode(self, src, progress = None):
 		"""Compress a string."""
-		
+
 		length = len(src)
 		if length == 0:
 			return ""
@@ -525,17 +524,17 @@ class lzari_codec(object):
 		out_array = array.array('B')
 		self.out_array = out_array
 		self.append_bit = out_array.append
-		
+
 		self.init(False)
 
 		max_match = min(MAX_MATCH_LEN, length)
 		self.max_match = max_match
 		self.src = src = "\x20" * max_match + src
-			
+
 		in_length = len(src)
-		
+
 		self.start_pos = max_match
-		
+
 		for in_pos in range(max_match):
 			self.add_suffix(in_pos, False)
 		in_pos += 1
@@ -561,7 +560,7 @@ class lzari_codec(object):
 					in_pos += 1
 					self.add_suffix(in_pos, False)
 			in_pos += 1
-				
+
 		self.shifts += 1
 		if self.low < QUADRANT1:
 			self.output_bit(0)
@@ -571,22 +570,22 @@ class lzari_codec(object):
 		#for k, v in sorted(self.suffix_table.items()):
 		#	count, head, table2, chars = v
 		#	print hexlify(k), count, head, len(table2), chars
-			
+
 		if progress:
 			sys.stderr.write("%s100%%\n" % progress)
-		
+
 		return bit_array_to_string(out_array)
-		
+
 	def decode(self, src, out_length, progress = None):
 		"""Decompress a string."""
-		
-		a = string_to_bit_array(src)
-		a.fromlist([0] * 32)	 # add some extra bits 
-		self.in_iter = iter(a).next
 
-		out = array.array('B', "\0") * out_length
+		a = string_to_bit_array(src)
+		a.fromlist([0] * 32)	 # add some extra bits
+		self.in_iter = iter(a).__next__
+
+		out = array.array('B', b"\0") * out_length
 		outpos = 0
-		
+
 		self.init(True)
 
 		self.code = 0
@@ -625,28 +624,28 @@ class lzari_codec(object):
 				outpos += 1
 				history[hist_pos] = char
 				hist_pos = (hist_pos + 1) % HIST_LEN
-		
+
 		self.in_iter = None
 		if progress:
 			sys.stderr.write("%s100%%\n" % progress)
-		return out.tostring()
+		return out.tobytes()
 
 if mymcsup == None:
 	def decode(src, out_length, progress = None):
 		return lzari_codec().decode(src, out_length, progress)
-	
+
 	def encode(src, progress = None):
 		return lzari_codec().encode(src, progress)
 else:
 	mylzari_decode = mymcsup.mylzari_decode
 	mylzari_encode = mymcsup.mylzari_encode
 	mylzari_free_encoded = mymcsup.mylzari_free_encoded
-	
+
 	def decode(src, out_length, progress = None):
 		out = ctypes.create_string_buffer(out_length)
 		if (mylzari_decode(src, len(src), out, out_length, progress)
 		    == -1):
-			raise ValueError, "compressed input is corrupt"
+			raise ValueError("compressed input is corrupt")
 		return ctypes.string_at(out, out_length)
 
 	def encode(src, progress = None):
@@ -654,7 +653,7 @@ else:
 							   progress)
 		# print r, compressed.value, comp_len
 		if r == -1:
-			raise MemoryError, "out of memory during compression"
+			raise MemoryError("out of memory during compression")
 		if compressed.value == None:
 			return ""
 		ret = ctypes.string_at(compressed.value, comp_len.value)
@@ -664,7 +663,7 @@ else:
 def main2(args):
 	import struct
 	import os
-	
+
 	src = file(args[2], "rb").read()
 	lzari = lzari_codec()
 	out = file(args[3], "wb")
@@ -679,7 +678,7 @@ def main2(args):
 		now = os.times()
 	out.write(dest)
 	out.close()
-	print "time:", now[0] - start[0], now[1] - start[1], now[4] - start[4]
+	print("time:", now[0] - start[0], now[1] - start[1], now[4] - start[4])
 
 
 def _get_hotshot_lineinfo(filename):
@@ -694,7 +693,7 @@ def _get_hotshot_lineinfo(filename):
 			else:
 				a[0] += 1
 				a[1] += tdelta
-	return timings.items()
+	return list(timings.items())
 
 def _dump_hotshot_lineinfo(log):
 	a = sorted(_get_hotshot_lineinfo(log))
@@ -703,10 +702,10 @@ def _dump_hotshot_lineinfo(log):
 	total_time = sum((time[1]
 			  for (loc, time) in a))
 	for (loc, [count, time]) in a:
-		print ("%8d %6.3f%%  %8d %6.3f%%"
+		print(("%8d %6.3f%%  %8d %6.3f%%"
 		       % (time, time * 100.0 / total_time,
-			  count, count * 100.0 / total_count)),
-		print "%s:%d(%s)" % loc
+			  count, count * 100.0 / total_count)), end=' ')
+		print("%s:%d(%s)" % loc)
 
 def _dump_hotshot_lineinfo2(log):
 	cur = None
@@ -719,7 +718,7 @@ def _dump_hotshot_lineinfo2(log):
 		if cur != filename:
 			if cur != None and f != None:
 				for line in f:
-					print line[:-1]
+					print(line[:-1])
 				f.close()
 			try:
 				f = file(filename, "r")
@@ -727,27 +726,27 @@ def _dump_hotshot_lineinfo2(log):
 				f = None
 			cur = filename
 			l = 0
-			print "#", filename
+			print("#", filename)
 		if f != None:
 			while l < lineno:
-				print f.readline()[:-1]
+				print(f.readline()[:-1])
 				l += 1
-		print ("# %8d %6.3f%%  %8d %6.3f%%"
+		print(("# %8d %6.3f%%  %8d %6.3f%%"
 		       % (time, time * 100.0 / total_time,
-			  count, count * 100.0 / total_count))
+			  count, count * 100.0 / total_count)))
 	if cur != None and f != None:
 		for line in f:
-			print line[:-1]
+			print(line[:-1])
 		f.close()
-	
+
 def main(args):
 	import os
-	
+
 	if args[1] == "pc":
 		import profile
 		pr = profile.Profile()
 		for i in range(5):
-			print pr.calibrate(100000)
+			print(pr.calibrate(100000))
 		return
 	elif args[1] == "p":
 		import profile
@@ -781,9 +780,8 @@ def main(args):
 			except OSError:
 				pass
 		return ret
-			
+
 	return main2(args)
 
 if __name__ == '__main__':
 	sys.exit(main(sys.argv))
-	
