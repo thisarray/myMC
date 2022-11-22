@@ -60,7 +60,7 @@ def _make_ecc_tables():
 _parity_table, _column_parity_masks = _make_ecc_tables()
 
 def _ecc_calculate(s):
-	"Calculate the Hamming code for a 128 byte long string or byte array."
+	"""Calculate the Hamming code for a 128 byte long string or byte array."""
 
 	if not isinstance(s, array.array):
 		a = array.array('B')
@@ -128,7 +128,7 @@ def ecc_calculate_page(page):
 		for i in range(div_round_up(len(page), 128))]
 
 def ecc_check_page(page, spare):
-	"Check and correct any single bit errors in a PS2 memory card page."
+	"""Check and correct any single bit errors in a PS2 memory card page."""
 
 	failed = False
 	corrected = False
@@ -141,7 +141,7 @@ def ecc_check_page(page, spare):
 	for i in range(div_round_up(len(page), 128)):
 		a = array.array('B')
 		a.frombytes(page[i * 128 : i * 128 + 128])
-		chunks.append((a, list(map(ord, spare[i * 3 : i * 3 + 3]))))
+		chunks.append((a, array.array('B', spare[i * 3 : i * 3 + 3]).tolist()))
 
 	r = [ecc_check(s, ecc)
 	     for (s, ecc) in chunks]

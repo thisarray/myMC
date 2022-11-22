@@ -22,7 +22,7 @@ from ps2mc_ecc import *
 from ps2mc_dir import *
 import ps2save
 
-PS2MC_MAGIC = "Sony PS2 Memory Card Format "
+PS2MC_MAGIC = b"Sony PS2 Memory Card Format "
 PS2MC_FAT_ALLOCATED_BIT = 0x80000000
 PS2MC_FAT_CHAIN_END = 0xFFFFFFFF
 PS2MC_FAT_CHAIN_END_UNALLOC = 0x7FFFFFFF
@@ -116,14 +116,14 @@ unpack_fat = unpack_32bit_array
 pack_fat = pack_32bit_array
 
 def pathname_split(pathname):
-	if pathname == "":
+	if pathname == b"":
 		return (None, False, False)
-	components = pathname.split("/")
+	components = pathname.split(b"/")
 	return ([name
 		 for name in components
-		 if name != ""],
-		components[0] != "",
-		components[-1] == "")
+		 if name != b""],
+		components[0] != b"",
+		components[-1] == b"")
 
 class lru_cache:
 	def __init__(self, length):
@@ -273,7 +273,7 @@ class ps2mc_file:
 		self.buffer_cluster = None
 		self.softspace = 0
 		if name == None:
-			self.name = "<ps2mc_file>"
+			self.name = b"<ps2mc_file>"
 		else:
 			self.name = name
 		self.closed = False
@@ -381,7 +381,7 @@ class ps2mc_file:
 		while size > 0:
 			off = pos % cluster_size
 			l = min(cluster_size - off, size)
-			buf = self.read_file_cluster(pos / cluster_size)
+			buf = self.read_file_cluster(pos // cluster_size)
 			if buf == None:
 				break
 			if eol != None:
@@ -411,7 +411,7 @@ class ps2mc_file:
 		# print "@@@ write", pos, size
 		i = 0
 		while size > 0:
-			cluster = pos / cluster_size
+			cluster = pos // cluster_size
 			off = pos % cluster_size
 			l = min(cluster_size - off, size)
 			s = out[i : i + l]
@@ -453,7 +453,7 @@ class ps2mc_file:
 		return r
 
 	def readline(self, size = None):
-		return self.read(size, "\n")
+		return self.read(size, "\n").decode()
 
 	def readlines(self, sizehint):
 		return [line for line in self]
@@ -515,7 +515,7 @@ class ps2mc_directory:
 	def __next__(self):
 		# print "@@@ next", self.tell(), self.f.name
 		dirent = self.f.read(PS2MC_DIRENT_LENGTH)
-		if dirent == "":
+		if dirent == b"":
 			if 0 == self._iter_end:
 				raise StopIteration
 			self.seek(0)
@@ -528,10 +528,10 @@ class ps2mc_directory:
 		self.f.seek(offset * PS2MC_DIRENT_LENGTH, whence)
 
 	def tell(self):
-		return self.f.tell() / PS2MC_DIRENT_LENGTH
+		return self.f.tell() // PS2MC_DIRENT_LENGTH
 
 	def __len__(self):
-		return self.f.length / PS2MC_DIRENT_LENGTH
+		return self.f.length // PS2MC_DIRENT_LENGTH
 
 	def __getitem__(self, index):
 		# print "@@@ getitem", index, self.f.name
@@ -572,7 +572,7 @@ class _root_directory(ps2mc_directory):
 	The close() method is disabled so the cached object can be reused."""
 
 	def __init__(self, mc, dirloc, first_cluster, length,
-		     mode = "r+b", name = "/"):
+		     mode = "r+b", name = b"/"):
 		ps2mc_directory.__init__(self, mc, dirloc, first_cluster,
 					 length, mode, name)
 
@@ -597,11 +597,11 @@ class ps2mc:
 		self.raw_page_size = self.page_size + self.spare_size
 		self.cluster_size = self.page_size * self.pages_per_cluster
 		self.entries_per_cluster = (self.page_size
-					    * self.pages_per_cluster / 4)
+					    * self.pages_per_cluster // 4)
 
 		limit = (min(self.good_block2, self.good_block1)
 			 * self.pages_per_erase_block
-			 / self.pages_per_cluster
+			 // self.pages_per_cluster
 			 - self.allocatable_cluster_offset)
 		self.allocatable_cluster_limit = limit
 
@@ -656,7 +656,7 @@ class ps2mc:
 		dot = root[0]
 		dotdot = root[1]
 		root.close()
-		if (dot[8] != "." or dotdot[8] != ".."
+		if (dot[8] != b"." or dotdot[8] != b".."
 		    or not mode_is_dir(dot[0]) or not mode_is_dir(dotdot[0])):
 			raise corrupt("Root directory damaged.")
 
@@ -704,12 +704,12 @@ class ps2mc:
 		pages_per_card = round_down(param_pages_per_card,
 					    pages_per_erase_block)
 		cluster_size = PS2MC_CLUSTER_SIZE
-		pages_per_cluster = cluster_size / page_size
+		pages_per_cluster = cluster_size // page_size
 		clusters_per_erase_block = (pages_per_erase_block
-					    / pages_per_cluster)
-		erase_blocks_per_card = pages_per_card / pages_per_erase_block
-		clusters_per_card = pages_per_card / pages_per_cluster
-		epc = cluster_size / 4
+					    // pages_per_cluster)
+		erase_blocks_per_card = pages_per_card // pages_per_erase_block
+		clusters_per_card = pages_per_card // pages_per_cluster
+		epc = cluster_size // 4
 
 		if (page_size < PS2MC_DIRENT_LENGTH
 		    or pages_per_cluster < 1
@@ -801,14 +801,14 @@ class ps2mc:
 		now = tod_now()
 		s = pack_dirent((DF_RWX | DF_DIR | DF_0400 | DF_EXISTS,
 				 0, 2, now,
-				 0, 0, now, 0, "."))
+				 0, 0, now, 0, b"."))
 		s += b"\0" * (cluster_size - len(s))
 		self.write_allocatable_cluster(0, s)
-		dir = self._directory((0, 0), 0, 2, "wb", "/")
+		dir = self._directory((0, 0), 0, 2, "wb", b"/")
 		dir.write_raw_ent(1, (DF_WRITE | DF_EXECUTE | DF_DIR | DF_0400
 				      | DF_HIDDEN | DF_EXISTS,
 				      0, 0, now,
-				      0, 0, now, 0, ".."), False)
+				      0, 0, now, 0, b".."), False)
 		dir.close()
 
 		self.flush()
@@ -939,7 +939,7 @@ class ps2mc:
 
 	def read_fat_cluster(self, n):
 		indirect_offset = n % self.entries_per_cluster
-		dbl_offset = n / self.entries_per_cluster
+		dbl_offset = n // self.entries_per_cluster
 		indirect_cluster = self.indirect_fat_cluster_list[dbl_offset]
 		indirect_fat = self._read_fat_cluster(indirect_cluster)
 		cluster = indirect_fat[indirect_offset]
@@ -951,7 +951,7 @@ class ps2mc:
 				       "FAT cluster index out of range"
 				       " (%d)" % n)
 		offset = n % self.entries_per_cluster
-		fat_cluster = n / self.entries_per_cluster
+		fat_cluster = n // self.entries_per_cluster
 		(fat, cluster) = self.read_fat_cluster(fat_cluster)
 		return (fat, offset, cluster)
 
@@ -1020,11 +1020,11 @@ class ps2mc:
 		assert dirloc == (0, 0)
 		if self.rootdir != None:
 			return self.rootdir
-		dir = _root_directory(self, dirloc, 0, length, "r+b", "/")
+		dir = _root_directory(self, dirloc, 0, length, "r+b", b"/")
 		l = dir[0][2]
 		if l != length:
 			dir.real_close()
-			dir = _root_directory(self, dirloc, 0, l, "r+b", "/")
+			dir = _root_directory(self, dirloc, 0, l, "r+b", b"/")
 		self.rootdir = dir
 		return dir
 
@@ -1041,7 +1041,7 @@ class ps2mc:
 		refered to by dirloc"""
 
 		dir = self._directory(None, dirloc[0], dirloc[1] + 1,
-				      name = "_dirloc_to_ent temp")
+				      name = b"_dirloc_to_ent temp")
 		ent = dir[dirloc[1]]
 		dir.close()
 		return ent
@@ -1051,7 +1051,7 @@ class ps2mc:
 
 		ent = self._dirloc_to_ent(dirloc)
 		return self._directory(dirloc, ent[4], ent[2],
-				       name = "_opendir_dirloc temp")
+				       name = b"_opendir_dirloc temp")
 
 	def _opendir_parent_dirloc(self, dirloc, mode = "rb"):
 		"""Open the directory that contains the file or directory
@@ -1081,7 +1081,7 @@ class ps2mc:
 
 		if is_dir and thisf != None and new_ent[2] != None:
 			new_ent = list(new_ent)
-			new_ent[2] /= PS2MC_DIRENT_LENGTH
+			new_ent[2] = new_ent[2] // PS2MC_DIRENT_LENGTH
 
 		# print "len: ", ent[2], new_ent[2]
 
@@ -1161,7 +1161,7 @@ class ps2mc:
 	def create_dir_entry(self, parent_dirloc, name, mode):
 		"""Create a new directory entry in a directory."""
 
-		if name == "":
+		if name == b"":
 			raise file_not_found(name)
 
 		# print "@@@ create_dir_ent", parent_dirloc, name
@@ -1208,15 +1208,15 @@ class ps2mc:
 
 		dirent = pack_dirent((DF_RWX | DF_0400 | DF_DIR | DF_EXISTS,
 				      0, 0, now, dirloc[0], dirloc[1],
-				      now, 0, "."))
+				      now, 0, b"."))
 		dirent += b"\0" * (self.cluster_size - PS2MC_DIRENT_LENGTH)
 		self.write_allocatable_cluster(cluster, dirent)
 		dir = self._directory(dirloc, cluster, 1, "wb",
-				      name = "<create_dir_entry temp>")
+				      name = b"<create_dir_entry temp>")
 		dir.write_raw_ent(1, (DF_RWX | DF_0400 | DF_DIR | DF_EXISTS,
 				      0, 0, now,
 				      0, 0,
-				      now, 0, ".."), False)
+				      now, 0, b".."), False)
 		dir.close()
 		ent[2] = 2
 		# print "@@@ ret", dirloc, ent
@@ -1251,8 +1251,8 @@ class ps2mc:
 		self.update_dirent_all(dirloc, None, ent)
 
 		while cluster != PS2MC_FAT_CHAIN_END:
-			if cluster / epc < self.fat_cursor:
-				self.fat_cursor = cluster / epc
+			if cluster // epc < self.fat_cursor:
+				self.fat_cursor = cluster // epc
 			next_cluster = self.lookup_fat(cluster)
 			if next_cluster & PS2MC_FAT_ALLOCATED_BIT == 0:
 				# corrupted
@@ -1278,7 +1278,7 @@ class ps2mc:
 		a directory."""
 
 		# print "@@@ path_search", repr(pathname)
-		if pathname == "":
+		if pathname == b"":
 			return (None, None, False)
 
 		(components, relative, is_dir) = pathname_split(pathname)
@@ -1287,7 +1287,7 @@ class ps2mc:
 		if relative:
 			dirloc = self.curdir
 
-		tmpname = "<path_search temp>"
+		tmpname = b"<path_search temp>"
 		_directory = self._directory
 
 		if dirloc == (0, 0):
@@ -1310,9 +1310,9 @@ class ps2mc:
 				return (None, (0, 0, 0, 0, 0, 0, 0, 0, None),
 					False)
 
-			if s == ".":
+			if s == b".":
 				continue
-			if s == "..":
+			if s == b"..":
 				dotent = dir[0]
 				dir.close()
 				dirloc = (dotent[4], dotent[5])
@@ -1361,7 +1361,7 @@ class ps2mc:
 			name = ent[8]
 			(dirloc, ent) = self.create_dir_entry(dirloc, name,
 							      DF_FILE | DF_RWX
-							      | DF_0400);
+							      | DF_0400)
 			self.flush()
 		elif mode[0] == "w":
 			self.delete_dirloc(dirloc, True, filename)
@@ -1569,7 +1569,7 @@ class ps2mc:
 
 		dir_ent = sf.get_directory()
 		if dirname == None:
-			dirname = "/" + dir_ent[8]
+			dirname = b"/" + dir_ent[8]
 
 		(root_dirloc, ent, is_dir) = self.path_search(dirname)
 		if root_dirloc == None:
@@ -1584,8 +1584,8 @@ class ps2mc:
 		(dir_dirloc, ent) = self.create_dir_entry(root_dirloc,
 							  name, mode)
 		try:
-			assert dirname != "/"
-			dirname = dirname + "/"
+			assert dirname != b"/"
+			dirname = dirname + b"/"
 			for i in range(dir_ent[2]):
 				(ent, data) = sf.get_file(i)
 				mode = DF_FILE | (ent[0] & ~DF_DIR)
@@ -1699,7 +1699,7 @@ class ps2mc:
 				continue
 			if mode & DF_DIR:
 				self._remove_dir((first_cluster, i), ent,
-						 dirname + ent[8] + "/")
+						 dirname + ent[8] + b"/")
 			else:
 				# print "deleting", dirname + ent[8]
 				self.delete_dirloc((first_cluster, i), False,
@@ -1720,8 +1720,8 @@ class ps2mc:
 			raise io_error(EACCES, "can't delete root directory",
 				       dirname)
 
-		if dirname != "" and dirname[-1] != "/":
-			dirname += "/"
+		if dirname != b"" and dirname[-1] != b"/":
+			dirname += b"/"
 		self._remove_dir(dirloc, ent, dirname)
 
 	def get_free_space(self):
@@ -1765,7 +1765,7 @@ class ps2mc:
 		why = self._check_file(fat, ent[4],
 				       ent[2] * PS2MC_DIRENT_LENGTH)
 		if why != None:
-			print("bad directory:", dirname + ":", why)
+			print("bad directory:", dirname.decode() + ":", why)
 			return False
 		ret = True
 		first_cluster = ent[4]
@@ -1773,14 +1773,14 @@ class ps2mc:
 		dir = self._directory(dirloc, first_cluster, length,
 				      "rb", dirname)
 		dot_ent = dir[0]
-		if dot_ent[8] != ".":
-			print("bad directory:", dirname + ': missing "." entry')
+		if dot_ent[8] != b".":
+			print("bad directory:", dirname.decode() + ': missing "." entry')
 			ret = False
 		if (dot_ent[4], dot_ent[5]) != dirloc:
-			print("bad directory:", dirname + ': bad "." entry')
+			print("bad directory:", dirname.decode() + ': bad "." entry')
 			ret = False
-		if dir[1][8] != "..":
-			print("bad directory:", (dirname
+		if dir[1][8] != b"..":
+			print("bad directory:", (dirname.decode()
 						 + ': missing ".." entry'))
 			ret = False
 		for i in range(2, length):
@@ -1790,13 +1790,13 @@ class ps2mc:
 				continue
 			if mode & DF_DIR:
 				if not self._check_dir(fat, (first_cluster, i),
-						       dirname + ent[8] + "/",
+						       dirname + ent[8] + b"/",
 						       ent):
 					ret = False
 			else:
 				why = self._check_file(fat, ent[4], ent[2])
 				if why != None:
-					print("bad file:", (dirname + ent[8]
+					print("bad file:", (dirname.decode() + ent[8].decode()
 							    + ":"), why)
 					ret = False
 
@@ -1818,7 +1818,7 @@ class ps2mc:
 
 		cluster = self.read_allocatable_cluster(0)
 		ent = unpack_dirent(cluster[:PS2MC_DIRENT_LENGTH])
-		ret = self._check_dir(fat, (0, 0), "/", ent)
+		ret = self._check_dir(fat, (0, 0), b"/", ent)
 
 		lost_clusters = 0
 		for i in range(self.allocatable_cluster_end):
@@ -1835,8 +1835,8 @@ class ps2mc:
 
 	def _globdir(self, dirname, components, is_dir):
 		pattern = components[0]
-		if dirname == "":
-			dir = self.dir_open(".")
+		if dirname == b"":
+			dir = self.dir_open(b".")
 		else:
 			dir = self.dir_open(dirname)
 		try:
@@ -1844,7 +1844,7 @@ class ps2mc:
 				for ent in dir
 				if ((ent[0] & DF_EXISTS)
 				    and (not is_dir or (ent[8] & DF_DIR))
-				    and (ent[8] not in [".", ".."]
+				    and (ent[8] not in (b".", b"..")
 					 or ent[8] == pattern)
 				    and fnmatch.fnmatchcase(ent[8],
 							    pattern))]
@@ -1860,8 +1860,8 @@ class ps2mc:
 		else:
 			_glob = self._glob
 
-		if dirname == "":
-			dir = self.dir_open(".")
+		if dirname == b"":
+			dir = self.dir_open(b".")
 		else:
 			dir = self.dir_open(dirname)
 		try:
@@ -1871,27 +1871,27 @@ class ps2mc:
 				if ((ent[0] & DF_EXISTS) == 0
 				    or (ent[0] & DF_DIR) == 0):
 					continue
-				if name == "." or name == "..":
+				if name == b"." or name == b"..":
 					if pattern != name:
 						continue
 				elif not fnmatch.fnmatchcase(name, pattern):
 					continue
-				ret += _glob(dirname + name + "/",
+				ret += _glob(dirname + name + b"/",
 					     components, is_dir)
 		finally:
 			dir.close()
 		return ret
 
 	def glob(self, pattern):
-		if pattern == "":
-			return [""]
+		if pattern == b"":
+			return [b""]
 		(components, relative, isdir) = pathname_split(pattern)
 		if len(components) == 0:
-			return ["/"]
+			return [b"/"]
 		if relative:
-			dirname = ""
+			dirname = b""
 		else:
-			dirname = "/"
+			dirname = b"/"
 		if len(components) == 1:
 			ret = self._globdir(dirname, components, isdir)
 		else:
@@ -1902,7 +1902,7 @@ class ps2mc:
 	def get_icon_sys(self, dirname):
 		"""Get contents of a directory's icon.sys file, if it exits."""
 
-		icon_sys = dirname + "/icon.sys"
+		icon_sys = dirname + b"/icon.sys"
 		mode = self.get_mode(icon_sys)
 		if mode == None or not mode_is_file(mode):
 			return None
@@ -1925,8 +1925,8 @@ class ps2mc:
 					length += round_up(ent[2],
 							   self.cluster_size)
 				elif (mode_is_dir(ent[0])
-				      and ent[8] not in [".", ".."]):
-					length += self.dir_size(dirname + "/"
+				      and ent[8] not in (b".", b"..")):
+					length += self.dir_size(dirname + b"/"
 								+ ent[8])
 		finally:
 			dir.close()

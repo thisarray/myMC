@@ -11,13 +11,12 @@ _SCCS_ID = "@(#) mymc ps2save.py 1.8 22/01/15 01:25:25\n"
 
 import sys
 import os
-import string
 import struct
 import binascii
 import array
 import zlib
 
-from round import div_round_up, round_up
+from round import round_up
 from ps2mc_dir import *
 from sjistab import shift_jis_normalize_table
 
@@ -26,10 +25,10 @@ try:
 except ImportError:
 	lzari = None
 
-PS2SAVE_MAX_MAGIC = "Ps2PowerSave"
-PS2SAVE_SPS_MAGIC = "\x0d\0\0\0SharkPortSave"
-PS2SAVE_CBS_MAGIC = "CFU\0"
-PS2SAVE_NPO_MAGIC = "nPort"
+PS2SAVE_MAX_MAGIC = b"Ps2PowerSave"
+PS2SAVE_SPS_MAGIC = b"\x0d\0\0\0SharkPortSave"
+PS2SAVE_CBS_MAGIC = b"CFU\0"
+PS2SAVE_NPO_MAGIC = b"nPort"
 
 # This is the initial permutation state ("S") for the RC4 stream cipher
 # algorithm used to encrpyt and decrypt Codebreaker saves.
@@ -172,7 +171,7 @@ def shift_jis_conv(src, encoding = None):
 	If encoding is "unicode" then a Unicode string is returned, otherwise
 	a string in the encoding specified is returned.  If necessary,
 	graphically similar characters are used to replace characters not
-	exactly	representable in the desired encoding.
+	exactly representable in the desired encoding.
 	"""
 
 	if encoding == None:
@@ -298,7 +297,7 @@ class ps2_save_file:
 	def get_icon_sys(self):
 		for i in range(self.dirent[2]):
 			(ent, data) = self.get_file(i)
-			if ent[8] == "icon.sys" and len(data) >= 964:
+			if ent[8] == b"icon.sys" and len(data) >= 964:
 				return unpack_icon_sys(data[:964])
 		return None
 
@@ -337,10 +336,10 @@ class ps2_save_file:
 		f.write(pack_dirent(dirent))
 		f.write(pack_dirent((DF_RWX | DF_DIR | DF_0400 | DF_EXISTS,
 				     0, 0, dirent[3],
-				     0, 0, dirent[3], 0, ".")))
+				     0, 0, dirent[3], 0, b".")))
 		f.write(pack_dirent((DF_RWX | DF_DIR | DF_0400 | DF_EXISTS,
 				     0, 0, dirent[3],
-				     0, 0, dirent[3], 0, "..")))
+				     0, 0, dirent[3], 0, b"..")))
 
 		for i in range(dirent[2] - 2):
 			(ent, data) = self.get_file(i)
@@ -350,8 +349,8 @@ class ps2_save_file:
 				# print hex(ent[0])
 				raise error("Directory has a subdirectory.")
 			f.write(data)
-			f.write("\0" * (round_up(len(data), cluster_size)
-					- len(data)))
+			f.write(b"\0" * (round_up(len(data), cluster_size)
+					 - len(data)))
 		f.flush()
 
 	def _load_max_drive_2(self):
@@ -362,7 +361,7 @@ class ps2_save_file:
 			raise error("The lzari module is needed to "
 				    " decompress MAX Drive saves.")
 		s = lzari.decode(s, length,
-				 "decompressing " + self.dirent[8] + ": ")
+				 "decompressing " + self.dirent[8].decode() + ": ")
 		dirlen = self.dirent[2]
 		timestamp = self.dirent[3]
 		off = 0
@@ -411,15 +410,15 @@ class ps2_save_file:
 		if lzari == None:
 			raise error("The lzari module is needed to "
 				    " decompress MAX Drive saves.")
-		iconsysname = ""
+		iconsysname = b""
 		icon_sys = self.get_icon_sys()
 		if icon_sys != None:
 			title = icon_sys_title(icon_sys, "ascii")
-			if len(title[0]) > 0 and title[0][-1] != ' ':
-				iconsysname = title[0] + " " + title[1].strip()
+			if len(title[0]) > 0 and title[0][-1] != b' ':
+				iconsysname = title[0] + b" " + title[1].strip()
 			else:
 				iconsysname = title[0] + title[1].rstrip()
-		s = ""
+		s = b""
 		dirent = self.dirent
 		for i in range(dirent[2]):
 			(ent, data) = self.get_file(i)
@@ -427,9 +426,9 @@ class ps2_save_file:
 				raise error("Non-file in save file.")
 			s += struct.pack("<L32s", ent[2], ent[8])
 			s += data
-			s += "\0" * (round_up(len(s) + 8, 16) - 8 - len(s))
+			s += b"\0" * (round_up(len(s) + 8, 16) - 8 - len(s))
 		length = len(s)
-		progress =  "compressing " + dirent[8] + ": "
+		progress =  "compressing " + dirent[8].decode() + ": "
 		compressed = lzari.encode(s, progress)
 		hdr = struct.pack("<12sL32s32sLLL", PS2SAVE_MAX_MAGIC,
 				  0, dirent[8], iconsysname,
@@ -477,7 +476,7 @@ class ps2_save_file:
 		body = dcobj.decompress(body, dlen)
 
 		files = []
-		while body != "":
+		while body != b"":
 			if len(body) < 64:
 				raise eof(f)
 			header = struct.unpack("<8s8sLHHLL32s", body[:64])
@@ -526,7 +525,7 @@ class ps2_save_file:
 		modified = unpack_tod(modified)
 
 		# mode values are byte swapped
-		dirmode = dirmode / 256 % 256 + dirmode % 256 * 256
+		dirmode = dirmode // 256 % 256 + dirmode % 256 * 256
 		dirlen -= 2
 		if not mode_is_dir(dirmode) or dirlen < 0:
 			raise corrupt("Bad values in directory entry.", f)
@@ -543,7 +542,7 @@ class ps2_save_file:
 			name = zero_terminate(name)
 			created = unpack_tod(created)
 			modified = unpack_tod(modified)
-			mode = mode / 256 % 256 + mode % 256 * 256
+			mode = mode // 256 % 256 + mode % 256 * 256
 			if not mode_is_file(mode):
 				raise subdir(f)
 			self.set_file(i, (mode, 0, flen, created, 0, 0,
@@ -579,7 +578,7 @@ def detect_file_type(f):
 	dotdotent = unpack_dirent(hdr[PS2MC_DIRENT_LENGTH * 2:])
 	if (mode_is_dir(dirent[0]) and mode_is_dir(dotent[0])
 	    and mode_is_dir(dotdotent[0]) and dirent[2] >= 2
-	    and dotent[8] == "." and dotdotent[8] == ".."):
+	    and dotent[8] == b"." and dotdotent[8] == b".."):
 		return "psu"
 	return None
 
@@ -588,21 +587,22 @@ def detect_file_type(f):
 #
 _bad_filename_chars = ("".join(map(chr, range(32)))
 		       + "".join(map(chr, range(127, 256))))
-_bad_filename_repl = "_" * len(_bad_filename_chars)
+_bad_filename_chars = _bad_filename_chars.encode()
+_bad_filename_repl = b"_" * len(_bad_filename_chars)
 
 if os.name in ["nt", "os2", "ce"]:
-	_bad_filename_chars += '<>:"/\\|?*'
-	_bad_filename_repl +=  "()_'_____"
-	_bad_filename_chars2 = _bad_filename_chars + " "
-	_bad_filename_repl2 = _bad_filename_repl +   "_"
+	_bad_filename_chars += b'<>:"/\\|?*'
+	_bad_filename_repl +=  b"()_'_____"
+	_bad_filename_chars2 = _bad_filename_chars + b" "
+	_bad_filename_repl2 = _bad_filename_repl +   b"_"
 else:
-	_bad_filename_chars += "/"
-	_bad_filename_repl += "_"
-	_bad_filename_chars2 = _bad_filename_chars + "?*'&|:[<>] \\\""
-	_bad_filename_repl2 = _bad_filename_repl +   "______(())___"
+	_bad_filename_chars += b"/"
+	_bad_filename_repl += b"_"
+	_bad_filename_chars2 = _bad_filename_chars + b"?*'&|:[<>] \\\""
+	_bad_filename_repl2 = _bad_filename_repl +   b"______(())___"
 
-_filename_trans = string.maketrans(_bad_filename_chars, _bad_filename_repl);
-_filename_trans2 = string.maketrans(_bad_filename_chars2, _bad_filename_repl2);
+_filename_trans = bytes.maketrans(_bad_filename_chars, _bad_filename_repl)
+_filename_trans2 = bytes.maketrans(_bad_filename_chars2, _bad_filename_repl2)
 
 def fix_filename(filename):
 	"""Replace illegal or problematic characters from a filename."""
@@ -612,21 +612,20 @@ def make_longname(dirname, sf):
 	"""Return a string containing a verbose filename for a save file."""
 
 	icon_sys = sf.get_icon_sys()
-	title = ""
+	title = b""
 	if icon_sys != None:
 		title = icon_sys_title(icon_sys, "ascii")
-		title = title[0] + " " + title[1]
-		title = " ".join(title.split())
+		title = title[0] + b" " + title[1]
+		title = b" ".join(title.split())
 	crc = binascii.crc32(b"")
 	for (ent, data) in sf:
 		crc = binascii.crc32(data, crc)
-	if len(dirname) >= 12 and (dirname[0:2] in ("BA", "BJ", "BE", "BK")):
-		if dirname[2:6] == "DATA":
-			title = ""
+	if len(dirname) >= 12 and (dirname[0:2] in (b"BA", b"BJ", b"BE", b"BK")):
+		if dirname[2:6] == b"DATA":
+			title = b""
 		else:
 			#dirname = dirname[2:6] + dirname[7:12]
 			dirname = dirname[2:12]
 
-	return fix_filename("%s %s (%08X)"
-			    % (dirname, title, crc & 0xFFFFFFFF))
-
+	return fix_filename(dirname + b" " + title + b" " + b"(%08X)"
+			    % (crc & 0xFFFFFFFF))

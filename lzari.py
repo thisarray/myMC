@@ -145,14 +145,14 @@ class lzari_codec:
 		self.position_cum = [0] * (HIST_LEN + 1)
 		a = 0
 		for i in range(HIST_LEN, 0, -1):
-			a = a + 10000 / (200 + i)
+			a = a + 10000 // (200 + i)
 			self.position_cum[i - 1] = a
 
 	def search(self, table, x):
 		c = 1
-	        s = len(table) - 1
+		s = len(table) - 1
 		while True:
-			a = (s + c) / 2
+			a = (s + c) // 2
 			if table[a] <= x:
 				s = a
 			else:
@@ -171,18 +171,18 @@ class lzari_codec:
 			c = 0
 			for i in range(MAX_CHAR, 0, -1):
 				self.sym_cum[MAX_CHAR - i] = c
-				a = (self.sym_freq[i] + 1) / 2
+				a = (self.sym_freq[i] + 1) // 2
 				self.sym_freq[i] = a
 				c += a
 			self.sym_cum[MAX_CHAR] = c
 		freq = sym_freq[symbol]
 		new_symbol = symbol
 		while self.sym_freq[new_symbol - 1] == freq:
-		        new_symbol -= 1
+			new_symbol -= 1
 		# new_symbol = sym_freq.index(freq)
 		if new_symbol != symbol:
 			symbol_to_char = self.symbol_to_char
-		        swap_char = symbol_to_char[new_symbol]
+			swap_char = symbol_to_char[new_symbol]
 			char = symbol_to_char[symbol]
 			symbol_to_char[new_symbol] = char
 			symbol_to_char[symbol] = swap_char
@@ -194,21 +194,21 @@ class lzari_codec:
 		sym_freq = self.sym_freq
 		sym_cum = self.sym_cum
 
-	        if sym_cum[0] >= MAX_CUM:
+		if sym_cum[0] >= MAX_CUM:
 			c = 0
 			for i in range(MAX_CHAR, 0, -1):
 				sym_cum[i] = c
-				a = (sym_freq[i] + 1) / 2
+				a = (sym_freq[i] + 1) // 2
 				sym_freq[i] = a
 				c += a
 			sym_cum[0] = c
 		freq = sym_freq[symbol]
 		new_symbol = symbol
 		while sym_freq[new_symbol - 1] == freq:
-		        new_symbol -= 1
+			new_symbol -= 1
 		if new_symbol != symbol:
 			debug(new_symbol, "a")
-		        swap_char = self.symbol_to_char[new_symbol]
+			swap_char = self.symbol_to_char[new_symbol]
 			char = self.symbol_to_char[symbol]
 			self.symbol_to_char[new_symbol] = char
 			self.symbol_to_char[symbol] = swap_char
@@ -226,10 +226,10 @@ class lzari_codec:
 
 		_range = high - low
 		max_cum_freq = sym_cum[MAX_CHAR]
-		n = ((code - low + 1) * max_cum_freq - 1) / _range
+		n = ((code - low + 1) * max_cum_freq - 1) // _range
 		i = bisect_right(sym_cum, n, 1)
-		high = low + sym_cum[i] * _range / max_cum_freq
-		low += sym_cum[i - 1] * _range / max_cum_freq
+		high = low + sym_cum[i] * _range // max_cum_freq
+		low += sym_cum[i - 1] * _range // max_cum_freq
 		symbol = MAX_CHAR + 1 - i
 
 		while True:
@@ -261,10 +261,10 @@ class lzari_codec:
 		max_cum = self.position_cum[0]
 		pos = self.search(self.position_cum,
 				  ((self.code - self.low + 1)
-				   * max_cum - 1) / _range) - 1
+				   * max_cum - 1) // _range) - 1
 		self.high = (self.low +
-			     self.position_cum[pos] * _range / max_cum)
-		self.low += self.position_cum[pos + 1] * _range / max_cum
+			     self.position_cum[pos] * _range // max_cum)
+		self.low += self.position_cum[pos + 1] * _range // max_cum
 		while True:
 			if self.low < QUADRANT2:
 				if (self.low < QUADRANT1
@@ -409,7 +409,7 @@ class lzari_codec:
 		else:
 			self.next_table[modpos] = hist_invalid
 			self.next2_table[modpos] = hist_invalid
-			key2 = ""
+			key2 = b""
 			# key2 = src[pos2 : pos2 + 1]
 			suffix_table[key] = [1, pos, {key2: pos}, len(key2)]
 
@@ -437,11 +437,11 @@ class lzari_codec:
 		start_pos = self.start_pos
 		if find and r[0] != None:
 			print(("%4d %02x %4d %2d"
-			       % (pos - start_pos, ord(self.src[pos]),
+			       % (pos - start_pos, self.src[pos],
 				  r[0] - start_pos, r[1])))
 		else:
 			print(("%4d %02x"
-				       % (pos - start_pos, ord(self.src[pos]))))
+				       % (pos - start_pos, self.src[pos])))
 		return r
 
 	add_suffix = add_suffix_2
@@ -461,10 +461,10 @@ class lzari_codec:
 		symbol = self.char_to_symbol[char]
 		range = high - low
 
-		high = low + range * sym_cum[symbol - 1] / sym_cum[0]
-		low += range * sym_cum[symbol] / sym_cum[0]
-		debug(high, "high");
-		debug(low, "low");
+		high = low + range * sym_cum[symbol - 1] // sym_cum[0]
+		low += range * sym_cum[symbol] // sym_cum[0]
+		debug(high, "high")
+		debug(low, "low")
 		while True:
 			if high <= QUADRANT2:
 				self.output_bit(0)
@@ -490,11 +490,11 @@ class lzari_codec:
 		high = self.high
 
 		range = high - low
-		high = low + range * position_cum[position] / position_cum[0]
-		low += range * position_cum[position + 1] / position_cum[0]
+		high = low + range * position_cum[position] // position_cum[0]
+		low += range * position_cum[position + 1] // position_cum[0]
 
-		debug(high, "high");
-		debug(low, "low");
+		debug(high, "high")
+		debug(low, "low")
 		while True:
 			if high <= QUADRANT2:
 				self.output_bit(0)
@@ -519,7 +519,7 @@ class lzari_codec:
 
 		length = len(src)
 		if length == 0:
-			return ""
+			return b""
 
 		out_array = array.array('B')
 		self.out_array = out_array
@@ -529,7 +529,7 @@ class lzari_codec:
 
 		max_match = min(MAX_MATCH_LEN, length)
 		self.max_match = max_match
-		self.src = src = "\x20" * max_match + src
+		self.src = src = b"\x20" * max_match + src
 
 		in_length = len(src)
 
@@ -541,15 +541,15 @@ class lzari_codec:
 		last_percent = -1
 		while in_pos < in_length:
 			if progress:
-				percent = (in_pos - max_match) * 100 / length
+				percent = (in_pos - max_match) * 100 // length
 				if percent != last_percent:
 					sys.stderr.write("%s%3d%%\r"
 							 % (progress, percent))
 					last_percent = percent
-			debug(ord(src[in_pos]), "src")
+			debug(src[in_pos], "src")
 			(match_pos, match_len) = self.add_suffix(in_pos, True)
 			if match_len < MIN_MATCH_LEN:
-				self.encode_char(ord(src[in_pos]))
+				self.encode_char(src[in_pos])
 			else:
 				debug(in_pos - match_pos - 1, "match_pos")
 				debug(match_len, "match_len")
@@ -600,7 +600,7 @@ class lzari_codec:
 		last_time = time.time()
 		while outpos < out_length:
 			if progress:
-				percent = outpos * 100 / out_length
+				percent = outpos * 100 // out_length
 				if percent != last_percent:
 					now = time.time()
 					if now - last_time >= 1:
@@ -655,18 +655,18 @@ else:
 		if r == -1:
 			raise MemoryError("out of memory during compression")
 		if compressed.value == None:
-			return ""
+			return b""
 		ret = ctypes.string_at(compressed.value, comp_len.value)
 		mylzari_free_encoded(compressed)
-		return ret;
+		return ret
 
 def main2(args):
 	import struct
 	import os
 
-	src = file(args[2], "rb").read()
+	src = open(args[2], "rb").read()
 	lzari = lzari_codec()
-	out = file(args[3], "wb")
+	out = open(args[3], "wb")
 	start = os.times()
 	if args[1] == "c":
 		dest = lzari.encode(src)
@@ -721,7 +721,7 @@ def _dump_hotshot_lineinfo2(log):
 					print(line[:-1])
 				f.close()
 			try:
-				f = file(filename, "r")
+				f = open(filename, "r")
 			except OSError:
 				f = None
 			cur = filename
