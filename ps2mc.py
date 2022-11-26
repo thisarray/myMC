@@ -273,7 +273,9 @@ class ps2mc_file:
 		self.buffer_cluster = None
 		self.softspace = 0
 		if name == None:
-			self.name = b"<ps2mc_file>"
+			self.name = "<ps2mc_file>"
+		elif isinstance(name, bytes):
+			self.name = name.decode()
 		else:
 			self.name = name
 		self.closed = False

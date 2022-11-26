@@ -99,12 +99,13 @@ def do_ls(cmd, mc, opts, args, opterr):
 		args = ["/"]
 
 	out = sys.stdout
+	args = [a.encode() for a in args]
 	args = glob_args(args, mc.glob)
 	for dirname in args:
 		dir = mc.dir_open(dirname)
 		try:
 			if len(args) > 1:
-				sys.stdout.write("\n" + dirname + ":\n")
+				sys.stdout.write("\n" + dirname.decode() + ":\n")
 			for ent in dir:
 				mode = ent[0]
 				if (mode & DF_EXISTS) == 0:
@@ -124,20 +125,20 @@ def do_ls(cmd, mc, opts, args, opterr):
 					  % (ent[2],
 					     tm.tm_year, tm.tm_mon, tm.tm_mday,
 					     tm.tm_hour, tm.tm_min, tm.tm_sec,
-					     ent[8]))
+					     ent[8].decode()))
 		finally:
 			dir.close()
 
 
-def do_add(cmd, mc, opts,  args, opterr):
+def do_add(cmd, mc, opts, args, opterr):
 	if len(args) < 1:
 		opterr("Filename required.")
 	if opts.directory != None:
-		mc.chdir(opts.directory)
+		mc.chdir(opts.directory.encode())
 	for src in glob_args(args, glob):
 		f = open(src, "rb")
 		dest = os.path.basename(src)
-		out = mc.open(dest, "wb")
+		out = mc.open(dest.encode(), "wb")
 		_copy(out, f)
 		out.close()
 		f.close()
@@ -147,7 +148,7 @@ def do_extract(cmd, mc, opts, args, opterr):
 		opterr("Filename required.")
 
 	if opts.directory != None:
-		mc.chdir(opts.directory)
+		mc.chdir(opts.directory.encode())
 
 	close_out = False
 	out = None
@@ -155,10 +156,11 @@ def do_extract(cmd, mc, opts, args, opterr):
 		if opts.use_stdout:
 			opterr("The -o and -p options are mutually exclusive.")
 		dont_close_out = True
-		out = file(opts.output, "wb")
+		out = open(opts.output, "wb")
 	elif opts.use_stdout:
 		out = sys.stdout
 
+	args = [a.encode() for a in args]
 	try:
 		for filename in glob_args(args, mc.glob):
 			f = mc.open(filename, "rb")
@@ -166,8 +168,8 @@ def do_extract(cmd, mc, opts, args, opterr):
 				if out != None:
 					_copy(out, f)
 					continue
-				a = filename.split("/")
-				o = file(a[-1], "wb")
+				a = filename.split(b"/")
+				o = open(a[-1].decode(), "wb")
 				try:
 					_copy(o, f)
 				finally:
@@ -183,14 +185,14 @@ def do_mkdir(cmd, mc, opts, args, opterr):
 		opterr("Directory required.")
 
 	for filename in args:
-		mc.mkdir(filename)
+		mc.mkdir(filename.encode())
 
 def do_remove(cmd, mc, opts, args, opterr):
 	if len(args) < 1:
 		opterr("Filename required.")
 
 	for filename in args:
-		mc.remove(filename)
+		mc.remove(filename.encode())
 
 def do_import(cmd, mc, opts, args, opterr):
 	if len(args) < 1:
@@ -203,7 +205,7 @@ def do_import(cmd, mc, opts, args, opterr):
 
 	for filename in args:
 		sf = ps2save.ps2_save_file()
-		f = file(filename, "rb")
+		f = open(filename, "rb")
 		try:
 			ftype = ps2save.detect_file_type(f)
 			f.seek(0)
@@ -226,10 +228,14 @@ def do_import(cmd, mc, opts, args, opterr):
 			f.close()
 		dirname = opts.directory
 		if dirname == None:
-			dirname = sf.get_directory()[8]
+			dirname = sf.get_directory()[8].decode()
+			target = None
+		else:
+			dirname = opts.directory
+			target = opts.directory.encode()
 		print("Importing", filename, "to", dirname)
 		if not mc.import_save_file(sf, opts.ignore_existing,
-						opts.directory):
+						target):
 			print((filename + ": already in memory card image,"
 			       " ignored."))
 
@@ -242,6 +248,7 @@ def do_export(cmd, mc, opts, args, opterr):
 	if opts.overwrite_existing and opts.ignore_existing:
 		opterr("The -i and -f options are mutually exclusive.")
 
+	args = [a.encode() for a in args]
 	args = glob_args(args, mc.glob)
 	if opts.output_file != None:
 		if len(args) > 1:
@@ -257,10 +264,10 @@ def do_export(cmd, mc, opts, args, opterr):
 		sf = mc.export_save_file(dirname)
 		filename = opts.output_file
 		if opts.longnames:
-			filename = (ps2save.make_longname(dirname, sf)
+			filename = (ps2save.make_longname(dirname, sf).decode()
 				    + "." + opts.type)
 		if filename == None:
-			filename = dirname + "." + opts.type
+			filename = dirname.decode() + "." + opts.type
 
 		if not opts.overwrite_existing:
 			exists = True
@@ -273,9 +280,9 @@ def do_export(cmd, mc, opts, args, opterr):
 					continue
 				raise io_error(EEXIST, "File exists", filename)
 
-		f = file(filename, "wb")
+		f = open(filename, "wb")
 		try:
-			print("Exporing", dirname, "to", filename)
+			print("Exporting", dirname.decode(), "to", filename)
 
 			if opts.type == "max":
 				sf.save_max_drive(f)
@@ -288,6 +295,7 @@ def do_delete(cmd, mc, opts, args, opterr):
 	if len(args) < 1:
 		opterr("Directory required.")
 
+	args = [a.encode() for a in args]
 	for dirname in args:
 		mc.rmdir(dirname)
 
@@ -320,6 +328,7 @@ def do_setmode(cmd, mc, opts, args, opterr):
 			opterr("The -X option can't be combined with"
 			       " other options.")
 
+	args = [a.encode() for a in args]
 	for arg in glob_args(args, mc.glob):
 		ent = mc.get_dirent(arg)
 		if value == None:
@@ -332,10 +341,11 @@ def do_setmode(cmd, mc, opts, args, opterr):
 def do_rename(cmd, mc, opts, args, opterr):
 	if len(args) != 2:
 		opterr("Old and new names required")
+	args = [a.encode() for a in args]
 	mc.rename(args[0], args[1])
 
 def _get_ps2_title(mc, enc):
-	s = mc.get_icon_sys(".");
+	s = mc.get_icon_sys(b".")
 	if s == None:
 		return None
 	a = ps2save.unpack_icon_sys(s)
@@ -358,15 +368,15 @@ def do_dir(cmd, mc, opts, args, opterr):
 	if len(args) != 0:
 		opterr("Incorrect number of arguments.")
 	f = None
-	dir = mc.dir_open("/")
+	dir = mc.dir_open(b"/")
 	try:
 		for ent in list(dir)[2:]:
 			dirmode = ent[0]
 			if not mode_is_dir(dirmode):
 				continue
-			dirname = "/" + ent[8]
+			dirname = b"/" + ent[8]
 			mc.chdir(dirname)
-			length = mc.dir_size(".");
+			length = mc.dir_size(b".")
 			enc = getattr(sys.stdout, "encoding", None)
 			if dirmode & DF_PSX:
 				title = _get_psx_title(mc, ent[8], enc)
@@ -392,21 +402,21 @@ def do_dir(cmd, mc, opts, args, opterr):
 			if type != None:
 				protection = type
 
-			print("%-32s %s" % (ent[8], title[0]))
+			print("%-32s %s" % (ent[8].decode(), title[0].decode()))
 			print(("%4dKB %-25s %s"
-			       % (length / 1024, protection, title[1])))
+			       % (length // 1024, protection, title[1].decode())))
 			print()
 	finally:
 		if f != None:
 			f.close()
 		dir.close()
 
-	free = mc.get_free_space() / 1024
+	free = mc.get_free_space() // 1024
 	if free > 999999:
-		free = "%d,%03d,%03d" % (free / 1000000, free / 1000 % 1000,
+		free = "%d,%03d,%03d" % (free // 1000000, free // 1000 % 1000,
 					 free % 1000)
 	elif free > 999:
-		free = "%d,%03d" % (free / 1000, free % 1000)
+		free = "%d,%03d" % (free // 1000, free % 1000)
 	else:
 		free = "%d" % free
 
@@ -431,7 +441,7 @@ def do_format(cmd, mcname, opts, args, opterr):
 	pages_per_card = ps2mc.PS2MC_STANDARD_PAGES_PER_CARD
 	if opts.clusters != None:
 		pages_per_cluster = (ps2mc.PS2MC_CLUSTER_SIZE
-				     / ps2mc.PS2MC_STANDARD_PAGE_SIZE)
+				     // ps2mc.PS2MC_STANDARD_PAGE_SIZE)
 		pages_per_card = opts.clusters * pages_per_cluster
 	params = (not opts.no_ecc,
 		  ps2mc.PS2MC_STANDARD_PAGE_SIZE,
@@ -441,13 +451,13 @@ def do_format(cmd, mcname, opts, args, opterr):
 	if not opts.overwrite_existing:
 		exists = True
 		try:
-			file(mcname, "rb").close()
+			open(mcname, "rb").close()
 		except EnvironmentError:
 			exists = False
 		if exists:
 			raise io_error(EEXIST, "file exists", mcname)
 
-	f = file(mcname, "w+b")
+	f = open(mcname, "w+b")
 	try:
 		ps2mc.ps2mc(f, True, params).close()
 	finally:
@@ -471,7 +481,7 @@ def do_create_pad(cmd, mc, opts, args, opterr):
 	if len(args) > 1:
 		length = int(args[1])
 	pad = b"\0" * mc.cluster_size
-	f = mc.open(args[0], "wb")
+	f = mc.open(args[0].encode(), "wb")
 	try:
 		for i in range(length):
 			f.write(pad)
@@ -490,7 +500,7 @@ def _print_bin(base, s):
 		a = s[off : off + 16]
 		for b in a:
 			print("%02X" % ord(b), end=' ')
-		print("", a.translate(_trans))
+		print("", a.translate(_trans).decode())
 
 def _print_erase_block(mc, n):
 	ppb = mc.pages_per_erase_block
@@ -677,10 +687,11 @@ del opt		# clean up name space
 
 
 def write_error(filename, msg):
-	if filename == None:
-		sys.stderr.write(msg + "\n")
-	else:
-		sys.stderr.write(filename + ": " + msg + "\n")
+	if isinstance(filename, bytes):
+		filename = filename.decode()
+	if isinstance(filename, str):
+		sys.stderr.write(filename + ": ")
+	sys.stderr.write(msg + "\n")
 
 class suboption_parser(optparse.OptionParser):
 	def exit(self, status = 0, msg = None):
@@ -711,7 +722,7 @@ class my_help_formatter(optparse.IndentedHelpFormatter):
 		return "\n".join(lines) + "\n"
 
 def main():
-	prog = sys.argv[0].decode(sys.getdefaultencoding(), "replace")
+	prog = sys.argv[0]
 	usage = "usage: %prog [-ih] memcard.ps2 command [...]"
 	description = ("Manipulate PS2 memory card images.\n\n"
 		       "Supported commands: ")
@@ -778,7 +789,7 @@ def main():
 				ret = fn(cmd, mcname, subopts, subargs,
 					 subopt_parser.error)
 			else:
-				f = file(mcname, mode)
+				f = open(mcname, mode)
 				mc = ps2mc.ps2mc(f, opts.ignore_ecc)
 				ret = fn(cmd, mc, subopts, subargs,
 					 subopt_parser.error)
@@ -802,7 +813,7 @@ def main():
 		if opts.debug:
 			raise
 
-	except subopt_error as ret:
+	except subopt_error:
 		pass
 
 	except (ps2mc.error, ps2save.error) as value:
@@ -820,4 +831,3 @@ def main():
 	return ret
 
 sys.exit(main())
-
