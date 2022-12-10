@@ -355,7 +355,7 @@ def do_dir(args, mc, parser):
 			else:
 				title = _get_ps2_title(mc, enc)
 			if title == None:
-				title = ["Corrupt", ""]
+				title = [b"Corrupt", b""]
 			protection = dirmode & (DF_PROTECTED | DF_WRITE)
 			if protection == 0:
 				protection = "Delete Protected"
